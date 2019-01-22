@@ -100,8 +100,20 @@ func (a UserPassAuthenticator) Authenticate(ctx context.Context, reader io.Reade
 	return ctx, nil
 }
 
-// authenticate is used to handle connection authentication
-func (s *Server) authenticate(ctx context.Context, conn io.Writer, bufConn io.Reader) (context.Context, uint8, error) {
+// Authenticate is used to handle connection authentication
+func (s *Server) Authenticate(ctx context.Context, conn io.Writer, bufConn io.Reader) (context.Context, uint8, error) {
+	// Read the version byte
+	version := []byte{0}
+	if _, err := bufConn.Read(version); err != nil {
+		return ctx, 0, fmt.Errorf("[ERR] socks: Failed to get version byte: %v", err)
+	}
+
+	// Ensure we are compatible
+	if version[0] != socks5Version {
+		err := fmt.Errorf("unsupported SOCKS version: %v", version)
+		return ctx, 0, fmt.Errorf("[ERR] socks: %v", err)
+	}
+
 	// Get the methods
 	methods, err := readMethods(bufConn)
 	if err != nil {

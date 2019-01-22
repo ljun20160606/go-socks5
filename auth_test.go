@@ -8,13 +8,13 @@ import (
 
 func TestNoAuth(t *testing.T) {
 	req := bytes.NewBuffer(nil)
-	req.Write([]byte{1, NoAuth})
+	req.Write([]byte{5, 1, NoAuth})
 	var resp bytes.Buffer
 
 	s, _ := New(&Config{})
 	ctx := context.Background()
 
-	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
+	ctx, authMethod, err := s.Authenticate(ctx, &resp, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestNoAuth(t *testing.T) {
 
 func TestPasswordAuth_Valid(t *testing.T) {
 	req := bytes.NewBuffer(nil)
-	req.Write([]byte{2, NoAuth, UserPassAuth})
+	req.Write([]byte{5, 2, NoAuth, UserPassAuth})
 	req.Write([]byte{1, 3, 'f', 'o', 'o', 3, 'b', 'a', 'r'})
 	var resp bytes.Buffer
 
@@ -44,7 +44,7 @@ func TestPasswordAuth_Valid(t *testing.T) {
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
 	ctx := context.Background()
 
-	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
+	ctx, authMethod, err := s.Authenticate(ctx, &resp, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestPasswordAuth_Valid(t *testing.T) {
 
 func TestPasswordAuth_Invalid(t *testing.T) {
 	req := bytes.NewBuffer(nil)
-	req.Write([]byte{2, NoAuth, UserPassAuth})
+	req.Write([]byte{5, 2, NoAuth, UserPassAuth})
 	req.Write([]byte{1, 3, 'f', 'o', 'o', 3, 'b', 'a', 'z'})
 	var resp bytes.Buffer
 
@@ -72,7 +72,7 @@ func TestPasswordAuth_Invalid(t *testing.T) {
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
 	ctx := context.Background()
 
-	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
+	ctx, authMethod, err := s.Authenticate(ctx, &resp, req)
 	if err != UserAuthFailed {
 		t.Fatalf("err: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestPasswordAuth_Invalid(t *testing.T) {
 
 func TestNoSupportedAuth(t *testing.T) {
 	req := bytes.NewBuffer(nil)
-	req.Write([]byte{1, NoAuth})
+	req.Write([]byte{5, 1, NoAuth})
 	var resp bytes.Buffer
 
 	cred := StaticCredentials{
@@ -100,7 +100,7 @@ func TestNoSupportedAuth(t *testing.T) {
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
 	ctx := context.Background()
 
-	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
+	ctx, authMethod, err := s.Authenticate(ctx, &resp, req)
 	if err != NoSupportedAuth {
 		t.Fatalf("err: %v", err)
 	}

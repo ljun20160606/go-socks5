@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -127,30 +128,21 @@ func (s *Server) ServeConn(conn net.Conn) {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
-	// Read the version byte
-	version := []byte{0}
-	if _, err := bufConn.Read(version); err != nil {
-		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
-		return
-	}
-
-	// Ensure we are compatible
-	if version[0] != socks5Version {
-		err := fmt.Errorf("unsupported SOCKS version: %v", version)
-		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return
-	}
-
 	ctx := context.Background()
 
 	// Authenticate the connection
-	ctx, authMethod, err := s.authenticate(ctx, conn, bufConn)
+	ctx, _, err := s.Authenticate(ctx, conn, bufConn)
 	if err != nil {
-		err = fmt.Errorf("failed to authenticate: %v", err)
+		err = fmt.Errorf("failed to Authenticate: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return
 	}
 
+	s.ServeCmdConn(ctx, conn, bufConn)
+}
+
+// After auth serve cmd
+func (s *Server) ServeCmdConn(ctx context.Context, conn net.Conn, bufConn io.Reader) {
 	request, err := NewRequest(bufConn)
 	if err != nil {
 		if err == unrecognizedAddrType {
@@ -162,7 +154,6 @@ func (s *Server) ServeConn(conn net.Conn) {
 		s.config.Logger.Printf("failed to read destination address: %v", err)
 		return
 	}
-	request.AuthMethod = authMethod
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
@@ -173,6 +164,4 @@ func (s *Server) ServeConn(conn net.Conn) {
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return
 	}
-
-	return
 }

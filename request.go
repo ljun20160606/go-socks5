@@ -69,8 +69,6 @@ type Request struct {
 	Version uint8
 	// Requested command
 	Command uint8
-	// Requested AuthMethod
-	AuthMethod uint8
 	// AddrSpec of the the network that sent the request
 	RemoteAddr *AddrSpec
 	// AddrSpec of the desired destination
