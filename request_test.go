@@ -49,11 +49,11 @@ func TestRequest_Connect(t *testing.T) {
 	lAddr := l.Addr().(*net.TCPAddr)
 
 	// Make server
-	s := &Server{config: &Config{
+	s, _ := New(&Config{
 		Rules:    PermitAll(),
 		Resolver: DNSResolver{},
 		Logger:   log.New(os.Stdout, "", log.LstdFlags),
-	}}
+	})
 
 	// Create the connect request
 	buf := bytes.NewBuffer(nil)

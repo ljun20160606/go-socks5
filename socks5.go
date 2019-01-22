@@ -2,12 +2,11 @@ package socks5
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
-
-	"golang.org/x/net/context"
 )
 
 const (
@@ -47,7 +46,7 @@ type Config struct {
 	Logger *log.Logger
 
 	// Optional function for dialing out
-	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
+	Dial func(ctx context.Context, network string, addr *AddrSpec) (net.Conn, error)
 }
 
 // Server is reponsible for accepting connections and handling
@@ -83,6 +82,13 @@ func New(conf *Config) (*Server, error) {
 		conf.Logger = log.New(os.Stdout, "", log.LstdFlags)
 	}
 
+	// Attempt to connect
+	if conf.Dial == nil {
+		conf.Dial = func(ctx context.Context, net_ string, addr *AddrSpec) (net.Conn, error) {
+			return net.Dial(net_, addr.Address())
+		}
+	}
+
 	server := &Server{
 		config: conf,
 	}
@@ -114,11 +120,10 @@ func (s *Server) Serve(l net.Listener) error {
 		}
 		go s.ServeConn(conn)
 	}
-	return nil
 }
 
 // ServeConn is used to serve a single connection.
-func (s *Server) ServeConn(conn net.Conn) error {
+func (s *Server) ServeConn(conn net.Conn) {
 	defer conn.Close()
 	bufConn := bufio.NewReader(conn)
 
@@ -126,32 +131,34 @@ func (s *Server) ServeConn(conn net.Conn) error {
 	version := []byte{0}
 	if _, err := bufConn.Read(version); err != nil {
 		s.config.Logger.Printf("[ERR] socks: Failed to get version byte: %v", err)
-		return err
+		return
 	}
 
 	// Ensure we are compatible
 	if version[0] != socks5Version {
-		err := fmt.Errorf("Unsupported SOCKS version: %v", version)
+		err := fmt.Errorf("unsupported SOCKS version: %v", version)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
+		return
 	}
 
 	// Authenticate the connection
 	authContext, err := s.authenticate(conn, bufConn)
 	if err != nil {
-		err = fmt.Errorf("Failed to authenticate: %v", err)
+		err = fmt.Errorf("failed to authenticate: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
+		return
 	}
 
 	request, err := NewRequest(bufConn)
 	if err != nil {
 		if err == unrecognizedAddrType {
 			if err := sendReply(conn, addrTypeNotSupported, nil); err != nil {
-				return fmt.Errorf("Failed to send reply: %v", err)
+				s.config.Logger.Printf("failed to send reply: %v", err)
+				return
 			}
 		}
-		return fmt.Errorf("Failed to read destination address: %v", err)
+		s.config.Logger.Printf("failed to read destination address: %v", err)
+		return
 	}
 	request.AuthContext = authContext
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
@@ -160,10 +167,10 @@ func (s *Server) ServeConn(conn net.Conn) error {
 
 	// Process the client request
 	if err := s.handleRequest(request, conn); err != nil {
-		err = fmt.Errorf("Failed to handle request: %v", err)
+		err = fmt.Errorf("failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
-		return err
+		return
 	}
 
-	return nil
+	return
 }
