@@ -69,8 +69,8 @@ type Request struct {
 	Version uint8
 	// Requested command
 	Command uint8
-	// AuthContext provided during negotiation
-	AuthContext *AuthContext
+	// Requested AuthMethod
+	AuthMethod uint8
 	// AddrSpec of the the network that sent the request
 	RemoteAddr *AddrSpec
 	// AddrSpec of the desired destination
@@ -115,21 +115,17 @@ func NewRequest(bufConn io.Reader) (*Request, error) {
 }
 
 // handleRequest is used for request processing after authentication
-func (s *Server) handleRequest(req *Request, conn conn) error {
-	ctx := context.Background()
-
+func (s *Server) handleRequest(ctx context.Context, req *Request, conn conn) (err error) {
 	// Resolve the address if we have a FQDN
 	dest := req.DestAddr
 	if dest.FQDN != "" {
-		ctx_, addr, err := s.config.Resolver.Resolve(ctx, dest.FQDN)
+		ctx, dest.IP, err = s.config.Resolver.Resolve(ctx, dest.FQDN)
 		if err != nil {
 			if err := sendReply(conn, hostUnreachable, nil); err != nil {
 				return fmt.Errorf("failed to send reply: %v", err)
 			}
 			return fmt.Errorf("failed to resolve destination '%v': %v", dest.FQDN, err)
 		}
-		ctx = ctx_
-		dest.IP = addr
 	}
 
 	// Apply any address rewrites
@@ -147,7 +143,7 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 	case AssociateCommand:
 		return s.handleAssociate(ctx, conn, req)
 	default:
-		if err := sendReply(conn, commandNotSupported, nil); err != nil {
+		if err = sendReply(conn, commandNotSupported, nil); err != nil {
 			return fmt.Errorf("failed to send reply: %v", err)
 		}
 		return fmt.Errorf("unsupported command: %v", req.Command)
@@ -157,13 +153,12 @@ func (s *Server) handleRequest(req *Request, conn conn) error {
 // handleConnect is used to handle a connect command
 func (s *Server) handleConnect(ctx context.Context, conn conn, req *Request) error {
 	// Check if this is allowed
-	if ctx_, ok := s.config.Rules.Allow(ctx, req); !ok {
+	ctx, ok := s.config.Rules.Allow(ctx, req)
+	if !ok {
 		if err := sendReply(conn, ruleFailure, nil); err != nil {
 			return fmt.Errorf("failed to send reply: %v", err)
 		}
 		return fmt.Errorf("connect to %v blocked by rules", req.DestAddr)
-	} else {
-		ctx = ctx_
 	}
 
 	// dial destAddr

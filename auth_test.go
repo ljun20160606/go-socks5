@@ -2,6 +2,7 @@ package socks5
 
 import (
 	"bytes"
+	"context"
 	"testing"
 )
 
@@ -11,13 +12,15 @@ func TestNoAuth(t *testing.T) {
 	var resp bytes.Buffer
 
 	s, _ := New(&Config{})
-	ctx, err := s.authenticate(&resp, req)
+	ctx := context.Background()
+
+	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if ctx.Method != NoAuth {
-		t.Fatal("Invalid Context Method")
+	if authMethod != NoAuth {
+		t.Fatal("Invalid AuthMethod")
 	}
 
 	out := resp.Bytes()
@@ -39,23 +42,15 @@ func TestPasswordAuth_Valid(t *testing.T) {
 	cator := UserPassAuthenticator{Credentials: cred}
 
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
+	ctx := context.Background()
 
-	ctx, err := s.authenticate(&resp, req)
+	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
-	if ctx.Method != UserPassAuth {
-		t.Fatal("Invalid Context Method")
-	}
-
-	val, ok := ctx.Payload["Username"]
-	if !ok {
-		t.Fatal("Missing key Username in auth context's payload")
-	}
-
-	if val != "foo" {
-		t.Fatal("Invalid Username in auth context's payload")
+	if authMethod != UserPassAuth {
+		t.Fatal("Invalid AuthMethod")
 	}
 
 	out := resp.Bytes()
@@ -75,14 +70,15 @@ func TestPasswordAuth_Invalid(t *testing.T) {
 	}
 	cator := UserPassAuthenticator{Credentials: cred}
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
+	ctx := context.Background()
 
-	ctx, err := s.authenticate(&resp, req)
+	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
 	if err != UserAuthFailed {
 		t.Fatalf("err: %v", err)
 	}
 
-	if ctx != nil {
-		t.Fatal("Invalid Context Method")
+	if authMethod != NoAuth {
+		t.Fatal("Invalid AuthMethod")
 	}
 
 	out := resp.Bytes()
@@ -102,14 +98,15 @@ func TestNoSupportedAuth(t *testing.T) {
 	cator := UserPassAuthenticator{Credentials: cred}
 
 	s, _ := New(&Config{AuthMethods: []Authenticator{cator}})
+	ctx := context.Background()
 
-	ctx, err := s.authenticate(&resp, req)
+	ctx, authMethod, err := s.authenticate(ctx, &resp, req)
 	if err != NoSupportedAuth {
 		t.Fatalf("err: %v", err)
 	}
 
-	if ctx != nil {
-		t.Fatal("Invalid Context Method")
+	if authMethod != NoAuth {
+		t.Fatal("Invalid AuthMethod")
 	}
 
 	out := resp.Bytes()

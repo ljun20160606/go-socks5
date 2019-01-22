@@ -1,6 +1,7 @@
 package socks5
 
 import (
+	"context"
 	"testing"
 )
 
@@ -10,15 +11,20 @@ func TestStaticCredentials(t *testing.T) {
 		"baz": "",
 	}
 
-	if !creds.Valid("foo", "bar") {
+	ctx := context.Background()
+
+	ctx, isValid := creds.Valid(ctx, "foo", "bar")
+	if !isValid {
 		t.Fatalf("expect valid")
 	}
 
-	if !creds.Valid("baz", "") {
+	ctx, isValid = creds.Valid(ctx, "baz", "")
+	if !isValid {
 		t.Fatalf("expect valid")
 	}
 
-	if creds.Valid("foo", "") {
-		t.Fatalf("expect invalid")
+	ctx, isValid = creds.Valid(ctx, "foo", "")
+	if isValid {
+		t.Fatalf("expect valid")
 	}
 }

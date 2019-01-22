@@ -141,8 +141,10 @@ func (s *Server) ServeConn(conn net.Conn) {
 		return
 	}
 
+	ctx := context.Background()
+
 	// Authenticate the connection
-	authContext, err := s.authenticate(conn, bufConn)
+	ctx, authMethod, err := s.authenticate(ctx, conn, bufConn)
 	if err != nil {
 		err = fmt.Errorf("failed to authenticate: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
@@ -160,13 +162,13 @@ func (s *Server) ServeConn(conn net.Conn) {
 		s.config.Logger.Printf("failed to read destination address: %v", err)
 		return
 	}
-	request.AuthContext = authContext
+	request.AuthMethod = authMethod
 	if client, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		request.RemoteAddr = &AddrSpec{IP: client.IP, Port: client.Port}
 	}
 
 	// Process the client request
-	if err := s.handleRequest(request, conn); err != nil {
+	if err := s.handleRequest(ctx, request, conn); err != nil {
 		err = fmt.Errorf("failed to handle request: %v", err)
 		s.config.Logger.Printf("[ERR] socks: %v", err)
 		return
